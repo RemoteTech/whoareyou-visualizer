@@ -1,0 +1,32 @@
+import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import LikesChart from '../components/LikesChart';
+import WatchHistoryChart from '../components/WatchHistoryChart';
+
+export default function Dashboard() {
+  const location = useLocation();
+  const [view, setView] = useState('likes');
+  const zipFile = location.state?.zipFile;
+
+  if (!zipFile) {
+    return (
+      <div style={{ padding: '2rem' }}>
+        <h2>No data file uploaded</h2>
+        <p>Please return to the homepage and upload your TikTok data zip.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h1>Dashboard</h1>
+      <div style={{ marginBottom: '1rem' }}>
+        <button onClick={() => setView('likes')}>Likes</button>
+        <button onClick={() => setView('watch')}>Watch History</button>
+      </div>
+
+      {view === 'likes' && <LikesChart zipFile={zipFile} />}
+      {view === 'watch' && <WatchHistoryChart zipFile={zipFile} />}
+    </div>
+  );
+}

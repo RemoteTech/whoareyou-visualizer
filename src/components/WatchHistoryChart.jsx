@@ -4,16 +4,21 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts';
 
+const ITEMS_PER_PAGE = 20;
+
 export default function WatchHistoryChart({ zipFile }) {
   const [chartData, setChartData] = useState([]);
-  const [videoList, setVideoList] = useState([]);
+  const [allVideos, setAllVideos] = useState([]);
+  const [filteredVideos, setFilteredVideos] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [status, setStatus] = useState('Loading...');
+  const [sortMethod, setSortMethod] = useState('date-desc');
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const parseWatchHistory = async () => {
       try {
         const zip = await JSZip.loadAsync(zipFile);
-
         const file = Object.values(zip.files).find(f =>
           f.name.toLowerCase().includes('watch history.txt')
         );
@@ -28,19 +33,31 @@ export default function WatchHistoryChart({ zipFile }) {
 
         const dateCounts = {};
         const videos = [];
-        let currentDate = '';
+        let currentDateTime = '';
 
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i].trim();
 
           if (line.startsWith('Date:')) {
-            currentDate = line.replace('Date:', '').trim().split(' ')[0];
-            dateCounts[currentDate] = (dateCounts[currentDate] || 0) + 1;
+            currentDateTime = line.replace('Date:', '').trim();
+            const dateOnly = currentDateTime.split(' ')[0];
+            dateCounts[dateOnly] = (dateCounts[dateOnly] || 0) + 1;
           }
 
           if (line.startsWith('Link:')) {
             const url = line.replace('Link:', '').trim();
-            videos.push({ date: currentDate, url });
+            const videoId = (url.match(/video\/(\d+)/) || [])[1] || null;
+            const timeOfDay = getTimeOfDay(currentDateTime.split(' ')[1]);
+            const domain = getDomain(url);
+            videos.push({
+              url,
+              dateTime: currentDateTime,
+              date: currentDateTime.split(' ')[0],
+              time: currentDateTime.split(' ')[1],
+              domain,
+              timeOfDay,
+              videoId,
+            });
           }
         }
 
@@ -49,7 +66,8 @@ export default function WatchHistoryChart({ zipFile }) {
           .sort((a, b) => new Date(a.date) - new Date(b.date));
 
         setChartData(chart);
-        setVideoList(videos);
+        setAllVideos(videos);
+        setFilteredVideos(videos);
         setStatus('');
       } catch (err) {
         console.error(err);
@@ -60,9 +78,71 @@ export default function WatchHistoryChart({ zipFile }) {
     parseWatchHistory();
   }, [zipFile]);
 
+  // Sorting and filtering
+  useEffect(() => {
+    let videos = [...allVideos];
+    if (selectedDate) {
+      videos = videos.filter(video => video.date === selectedDate);
+    }
+
+    switch (sortMethod) {
+      case 'date-desc':
+        videos.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+        break;
+      case 'date-asc':
+        videos.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+        break;
+      case 'domain':
+        videos.sort((a, b) => a.domain.localeCompare(b.domain));
+        break;
+      case 'timeofday':
+        const order = ['morning', 'afternoon', 'evening', 'night'];
+        videos.sort((a, b) =>
+          order.indexOf(a.timeOfDay) - order.indexOf(b.timeOfDay)
+        );
+        break;
+      default:
+        break;
+    }
+
+    setFilteredVideos(videos);
+    setCurrentPage(1);
+  }, [selectedDate, sortMethod, allVideos]);
+
   const getVideoId = (url) => {
     const match = url.match(/video\/(\d+)/);
     return match ? match[1] : null;
+  };
+
+  const getDomain = (url) => {
+    try {
+      return new URL(url).hostname.replace('www.', '');
+    } catch {
+      return '';
+    }
+  };
+
+  const getTimeOfDay = (timeStr) => {
+    if (!timeStr) return '';
+    const hour = parseInt(timeStr.split(':')[0], 10);
+    if (hour >= 5 && hour < 12) return 'morning';
+    if (hour >= 12 && hour < 17) return 'afternoon';
+    if (hour >= 17 && hour < 21) return 'evening';
+    return 'night';
+  };
+
+  const totalPages = Math.ceil(filteredVideos.length / ITEMS_PER_PAGE);
+  const currentVideos = filteredVideos.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const handleBarClick = (data) => {
+    if (selectedDate === data.date) {
+      setSelectedDate(null); // toggle off
+    } else {
+      setSelectedDate(data.date);
+    }
   };
 
   return (
@@ -71,8 +151,8 @@ export default function WatchHistoryChart({ zipFile }) {
       {status && <p>{status}</p>}
 
       {chartData.length > 0 && (
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={chartData}>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={chartData} onClick={({ activeLabel }) => handleBarClick({ date: activeLabel })}>
             <XAxis dataKey="date" />
             <YAxis />
             <Tooltip />
@@ -81,34 +161,60 @@ export default function WatchHistoryChart({ zipFile }) {
         </ResponsiveContainer>
       )}
 
-      {videoList.length > 0 && (
-        <div style={{ marginTop: '2rem' }}>
-          <h3>Watched Videos</h3>
-          <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
-            {videoList.map((video, index) => {
-              const videoId = getVideoId(video.url);
-              const thumbnailUrl = videoId
-                ? `https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/${videoId}_~tplv-obj.image`
-                : null;
+      {allVideos.length > 0 && (
+        <>
+          <div style={{ margin: '1rem 0' }}>
+            <label>Sort by: </label>
+            <select value={sortMethod} onChange={(e) => setSortMethod(e.target.value)}>
+              <option value="date-desc">Date (Newest First)</option>
+              <option value="date-asc">Date (Oldest First)</option>
+              <option value="domain">Domain (A–Z)</option>
+              <option value="timeofday">Time of Day</option>
+            </select>
+          </div>
 
-              return (
-                <li key={index} style={{ marginBottom: '1rem' }}>
-                  <a href={video.url} target="_blank" rel="noopener noreferrer">
-                    {thumbnailUrl ? (
-                      <img
-                        src={thumbnailUrl}
-                        alt="Video thumbnail"
-                        style={{ height: 120, display: 'block' }}
-                        onError={(e) => (e.target.style.display = 'none')}
-                      />
-                    ) : null}
-                    {video.url}
-                  </a>
-                </li>
-              );
-            })}
+          {selectedDate && (
+            <p>
+              Showing videos watched on <strong>{selectedDate}</strong>{' '}
+              <button onClick={() => setSelectedDate(null)}>Clear Filter</button>
+            </p>
+          )}
+
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {currentVideos.map((video, idx) => (
+              <li key={idx} style={{ marginBottom: '1rem' }}>
+                <a href={video.url} target="_blank" rel="noopener noreferrer">
+                  {video.videoId && (
+                    <img
+                      src={`https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/${video.videoId}_~tplv-obj.image`}
+                      alt="Thumbnail"
+                      style={{ height: 100, marginRight: '1rem', verticalAlign: 'middle' }}
+                      onError={(e) => (e.target.style.display = 'none')}
+                    />
+                  )}
+                  {video.url}
+                </a>
+                <div style={{ fontSize: '0.9rem', color: '#555' }}>
+                  Viewed on: {video.dateTime} | Domain: {video.domain} | Time: {video.timeOfDay}
+                </div>
+              </li>
+            ))}
           </ul>
-        </div>
+
+          {totalPages > 1 && (
+            <div style={{ marginTop: '1rem' }}>
+              <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1}>
+                Prev
+              </button>
+              <span style={{ margin: '0 1rem' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>
+                Next
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

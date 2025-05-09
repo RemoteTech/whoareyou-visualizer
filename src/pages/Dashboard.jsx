@@ -21,10 +21,12 @@ export default function Dashboard() {
     <div style={{ padding: '2rem' }}>
       <h1>Dashboard</h1>
       <div style={{ marginBottom: '1rem' }}>
+        <button onClick={() => setView('report')}>My WhoAreYou On TikTok Report</button>
         <button onClick={() => setView('likes')}>Likes</button>
         <button onClick={() => setView('watch')}>Watch History</button>
       </div>
 
+      {view === 'report' && <SignalsReport zipFile={zipFile} />}
       {view === 'likes' && <LikesChart zipFile={zipFile} />}
       {view === 'watch' && <WatchHistoryChart zipFile={zipFile} />}
     </div>

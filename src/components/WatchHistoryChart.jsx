@@ -19,85 +19,66 @@ export default function WatchHistoryChart({ zipFile }) {
     const parseWatchHistory = async () => {
       try {
         const zip = await JSZip.loadAsync(zipFile);
-
-        const jsonFile = Object.values(zip.files).find(f =>
-          f.name.toLowerCase().includes('user_data_tiktok.json')
-        );
-
-        const txtFile = Object.values(zip.files).find(f =>
+        const file = Object.values(zip.files).find(f =>
           f.name.toLowerCase().includes('watch history.txt')
         );
 
-        const videos = [];
-        const dateCounts = {};
-
-        if (jsonFile) {
-          const content = await jsonFile.async('string');
-          const json = JSON.parse(content);
-          const records = json['Watch History']?.['VideoList'];
-
-          if (records && Array.isArray(records)) {
-            records.forEach(({ Date, Link }) => {
-              const date = Date?.split(' ')[0];
-              const time = Date?.split(' ')[1];
-              const domain = getDomain(Link);
-              const timeOfDay = getTimeOfDay(time);
-              const videoId = (Link.match(/video\/(\d+)/) || [])[1] || null;
-
-              videos.push({ url: Link, dateTime: Date, date, time, domain, timeOfDay, videoId });
-              if (date) dateCounts[date] = (dateCounts[date] || 0) + 1;
-            });
-          } else {
-            setStatus('No entries in Watch History → VideoList.');
-            return;
-          }
-        } else if (txtFile) {
-          const text = await txtFile.async('string');
-          const lines = text.split('\n');
-          let currentDateTime = '';
-
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-
-            if (line.startsWith('Date:')) {
-              currentDateTime = line.replace('Date:', '').trim();
-              const date = currentDateTime.split(' ')[0];
-              dateCounts[date] = (dateCounts[date] || 0) + 1;
-            }
-
-            if (line.startsWith('Link:')) {
-              const url = line.replace('Link:', '').trim();
-              const date = currentDateTime.split(' ')[0];
-              const time = currentDateTime.split(' ')[1];
-              const domain = getDomain(url);
-              const timeOfDay = getTimeOfDay(time);
-              const videoId = (url.match(/video\/(\d+)/) || [])[1] || null;
-
-              videos.push({ url, dateTime: currentDateTime, date, time, domain, timeOfDay, videoId });
-            }
-          }
-        } else {
-          setStatus('No Watch History found in .json or .txt.');
+        if (!file) {
+          setStatus('Watch History.txt not found.');
           return;
+        }
+
+        const text = await file.async('string');
+        const lines = text.split('\n');
+
+        const dateCounts = {};
+        const videos = [];
+        let currentDateTime = '';
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+
+          if (line.startsWith('Date:')) {
+            currentDateTime = line.replace('Date:', '').trim();
+            const dateOnly = currentDateTime.split(' ')[0];
+            dateCounts[dateOnly] = (dateCounts[dateOnly] || 0) + 1;
+          }
+
+          if (line.startsWith('Link:')) {
+            const url = line.replace('Link:', '').trim();
+            const videoId = (url.match(/video\/(\d+)/) || [])[1] || null;
+            const timeOfDay = getTimeOfDay(currentDateTime.split(' ')[1]);
+            const domain = getDomain(url);
+            videos.push({
+              url,
+              dateTime: currentDateTime,
+              date: currentDateTime.split(' ')[0],
+              time: currentDateTime.split(' ')[1],
+              domain,
+              timeOfDay,
+              videoId,
+            });
+          }
         }
 
         const chart = Object.entries(dateCounts)
           .map(([date, count]) => ({ date, count }))
           .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+        setChartData(chart);
         setAllVideos(videos);
         setFilteredVideos(videos);
-        setChartData(chart);
         setStatus('');
       } catch (err) {
         console.error(err);
-        setStatus('Error parsing Watch History.');
+        setStatus('Failed to parse watch history.');
       }
     };
 
     parseWatchHistory();
   }, [zipFile]);
 
+  // Sorting and filtering
   useEffect(() => {
     let videos = [...allVideos];
     if (selectedDate) {
@@ -116,13 +97,22 @@ export default function WatchHistoryChart({ zipFile }) {
         break;
       case 'timeofday':
         const order = ['morning', 'afternoon', 'evening', 'night'];
-        videos.sort((a, b) => order.indexOf(a.timeOfDay) - order.indexOf(b.timeOfDay));
+        videos.sort((a, b) =>
+          order.indexOf(a.timeOfDay) - order.indexOf(b.timeOfDay)
+        );
+        break;
+      default:
         break;
     }
 
     setFilteredVideos(videos);
     setCurrentPage(1);
   }, [selectedDate, sortMethod, allVideos]);
+
+  const getVideoId = (url) => {
+    const match = url.match(/video\/(\d+)/);
+    return match ? match[1] : null;
+  };
 
   const getDomain = (url) => {
     try {
@@ -147,14 +137,22 @@ export default function WatchHistoryChart({ zipFile }) {
     currentPage * ITEMS_PER_PAGE
   );
 
+  const handleBarClick = (data) => {
+    if (selectedDate === data.date) {
+      setSelectedDate(null); // toggle off
+    } else {
+      setSelectedDate(data.date);
+    }
+  };
+
   return (
     <div>
-      <h2>Watch History</h2>
+      <h2>Watch Activity by Date</h2>
       {status && <p>{status}</p>}
 
       {chartData.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} onClick={({ activeLabel }) => setSelectedDate(activeLabel)}>
+          <BarChart data={chartData} onClick={({ activeLabel }) => handleBarClick({ date: activeLabel })}>
             <XAxis dataKey="date" />
             <YAxis />
             <Tooltip />
@@ -163,43 +161,60 @@ export default function WatchHistoryChart({ zipFile }) {
         </ResponsiveContainer>
       )}
 
-      <div style={{ marginTop: '1rem' }}>
-        <label>Sort by: </label>
-        <select value={sortMethod} onChange={(e) => setSortMethod(e.target.value)}>
-          <option value="date-desc">Date (Newest First)</option>
-          <option value="date-asc">Date (Oldest First)</option>
-          <option value="domain">Domain (A–Z)</option>
-          <option value="timeofday">Time of Day</option>
-        </select>
-      </div>
+      {allVideos.length > 0 && (
+        <>
+          <div style={{ margin: '1rem 0' }}>
+            <label>Sort by: </label>
+            <select value={sortMethod} onChange={(e) => setSortMethod(e.target.value)}>
+              <option value="date-desc">Date (Newest First)</option>
+              <option value="date-asc">Date (Oldest First)</option>
+              <option value="domain">Domain (A–Z)</option>
+              <option value="timeofday">Time of Day</option>
+            </select>
+          </div>
 
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {currentVideos.map((video, idx) => (
-          <li key={idx} style={{ marginBottom: '1rem' }}>
-            <a href={video.url} target="_blank" rel="noopener noreferrer">
-              {video.videoId && (
-                <img
-                  src={`https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/${video.videoId}_~tplv-obj.image`}
-                  alt="Thumbnail"
-                  style={{ height: 100, marginRight: '1rem', verticalAlign: 'middle' }}
-                  onError={(e) => (e.target.style.display = 'none')}
-                />
-              )}
-              {video.url}
-            </a>
-            <div style={{ fontSize: '0.9rem', color: '#555' }}>
-              Viewed on: {video.dateTime} | Domain: {video.domain} | Time: {video.timeOfDay}
+          {selectedDate && (
+            <p>
+              Showing videos watched on <strong>{selectedDate}</strong>{' '}
+              <button onClick={() => setSelectedDate(null)}>Clear Filter</button>
+            </p>
+          )}
+
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {currentVideos.map((video, idx) => (
+              <li key={idx} style={{ marginBottom: '1rem' }}>
+                <a href={video.url} target="_blank" rel="noopener noreferrer">
+                  {video.videoId && (
+                    <img
+                      src={`https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/${video.videoId}_~tplv-obj.image`}
+                      alt="Thumbnail"
+                      style={{ height: 100, marginRight: '1rem', verticalAlign: 'middle' }}
+                      onError={(e) => (e.target.style.display = 'none')}
+                    />
+                  )}
+                  {video.url}
+                </a>
+                <div style={{ fontSize: '0.9rem', color: '#555' }}>
+                  Viewed on: {video.dateTime} | Domain: {video.domain} | Time: {video.timeOfDay}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {totalPages > 1 && (
+            <div style={{ marginTop: '1rem' }}>
+              <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1}>
+                Prev
+              </button>
+              <span style={{ margin: '0 1rem' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>
+                Next
+              </button>
             </div>
-          </li>
-        ))}
-      </ul>
-
-      {totalPages > 1 && (
-        <div style={{ marginTop: '1rem' }}>
-          <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Prev</button>
-          <span style={{ margin: '0 1rem' }}>Page {currentPage} of {totalPages}</span>
-          <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>Next</button>
-        </div>
+          )}
+        </>
       )}
     </div>
   );

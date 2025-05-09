@@ -19,35 +19,47 @@ export default function WatchHistoryChart({ zipFile }) {
     const parseWatchHistory = async () => {
       try {
         const zip = await JSZip.loadAsync(zipFile);
-        const file = Object.values(zip.files).find(f => {
-          const name = f.name.toLowerCase();
-          return name.includes('watch history.txt') || name.includes('watchhistory.json');
-        });
 
-        if (!file) {
-          setStatus('Watch History file not found.');
-          return;
-        }
+        // Try to find the new user_data_tiktok.json file
+        const jsonFile = Object.values(zip.files).find(f =>
+          f.name.toLowerCase().includes('user_data_tiktok.json')
+        );
 
-        const isJson = file.name.toLowerCase().endsWith('.json');
-        const text = await file.async('string');
+        const txtFile = Object.values(zip.files).find(f =>
+          f.name.toLowerCase().includes('watch history.txt')
+        );
 
-        const videos = [];
+        let videos = [];
         const dateCounts = {};
 
-        if (isJson) {
-          const data = JSON.parse(text);
-          data.forEach(({ Date: dateTime, Link: url }) => {
-            const date = dateTime.split(' ')[0];
-            const time = dateTime.split(' ')[1];
-            const domain = getDomain(url);
-            const timeOfDay = getTimeOfDay(time);
-            const videoId = (url.match(/video\/(\d+)/) || [])[1] || null;
+        if (jsonFile) {
+          const text = await jsonFile.async('string');
+          const json = JSON.parse(text);
+          const records = json['Your Activity']?.['Video Browsing History'];
 
-            videos.push({ url, dateTime, date, time, domain, timeOfDay, videoId });
-            dateCounts[date] = (dateCounts[date] || 0) + 1;
-          });
-        } else {
+          if (records && Array.isArray(records)) {
+            records.forEach(({ Date, Link }) => {
+              const date = Date?.split(' ')[0];
+              const time = Date?.split(' ')[1];
+              const videoId = (Link.match(/video\/(\d+)/) || [])[1] || null;
+
+              videos.push({
+                url: Link,
+                dateTime: Date,
+                date,
+                time,
+                domain: getDomain(Link),
+                timeOfDay: getTimeOfDay(time),
+                videoId,
+              });
+
+              if (date) {
+                dateCounts[date] = (dateCounts[date] || 0) + 1;
+              }
+            });
+          }
+        } else if (txtFile) {
+          const text = await txtFile.async('string');
           const lines = text.split('\n');
           let currentDateTime = '';
 
@@ -64,13 +76,22 @@ export default function WatchHistoryChart({ zipFile }) {
               const url = line.replace('Link:', '').trim();
               const date = currentDateTime.split(' ')[0];
               const time = currentDateTime.split(' ')[1];
-              const domain = getDomain(url);
-              const timeOfDay = getTimeOfDay(time);
               const videoId = (url.match(/video\/(\d+)/) || [])[1] || null;
 
-              videos.push({ url, dateTime: currentDateTime, date, time, domain, timeOfDay, videoId });
+              videos.push({
+                url,
+                dateTime: currentDateTime,
+                date,
+                time,
+                domain: getDomain(url),
+                timeOfDay: getTimeOfDay(time),
+                videoId,
+              });
             }
           }
+        } else {
+          setStatus('Watch history not found in .txt or .json');
+          return;
         }
 
         const chart = Object.entries(dateCounts)
@@ -83,7 +104,7 @@ export default function WatchHistoryChart({ zipFile }) {
         setStatus('');
       } catch (err) {
         console.error(err);
-        setStatus('Failed to parse Watch History.');
+        setStatus('Error parsing watch history.');
       }
     };
 
@@ -110,8 +131,6 @@ export default function WatchHistoryChart({ zipFile }) {
         const order = ['morning', 'afternoon', 'evening', 'night'];
         videos.sort((a, b) => order.indexOf(a.timeOfDay) - order.indexOf(b.timeOfDay));
         break;
-      default:
-        break;
     }
 
     setFilteredVideos(videos);
@@ -127,6 +146,7 @@ export default function WatchHistoryChart({ zipFile }) {
   };
 
   const getTimeOfDay = (timeStr) => {
+    if (!timeStr) return '';
     const hour = parseInt(timeStr.split(':')[0], 10);
     if (hour >= 5 && hour < 12) return 'morning';
     if (hour >= 12 && hour < 17) return 'afternoon';
@@ -147,10 +167,7 @@ export default function WatchHistoryChart({ zipFile }) {
 
       {chartData.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={chartData}
-            onClick={({ activeLabel }) => setSelectedDate(activeLabel)}
-          >
+          <BarChart data={chartData} onClick={({ activeLabel }) => setSelectedDate(activeLabel)}>
             <XAxis dataKey="date" />
             <YAxis />
             <Tooltip />

@@ -16,8 +16,8 @@ export default function Home() {
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
-      <h1>TikTok Data Visualizer</h1>
-      <p>Upload your TikTok data ZIP file to explore your activity.</p>
+      <h1>WhoAreYou TikTok Algorithm Persona</h1>
+      <p>Upload your TikTok data ZIP file to explore your data and analysis.</p>
       <input type="file" accept=".zip" onChange={handleUpload} />
       <section style={{ marginTop: '3rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
         <h2>📥 How to Download Your TikTok Data</h2>

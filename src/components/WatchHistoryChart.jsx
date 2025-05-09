@@ -19,9 +19,11 @@ export default function WatchHistoryChart({ zipFile }) {
     const parseWatchHistory = async () => {
       try {
         const zip = await JSZip.loadAsync(zipFile);
-        const file = Object.values(zip.files).find(f =>
-          f.name.toLowerCase().includes('watch history.txt')
-        );
+        const file = Object.values(zip.files).find(f => {
+          const name = f.name.toLowerCase();
+          return name.includes('watch history.txt') || name.includes('watchhistory.json');
+        });
+        
 
         if (!file) {
           setStatus('Watch History.txt not found.');

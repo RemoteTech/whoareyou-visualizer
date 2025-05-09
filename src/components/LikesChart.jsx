@@ -12,9 +12,11 @@ export default function LikesChart({ zipFile }) {
     const parseLikes = async () => {
       try {
         const zip = await JSZip.loadAsync(zipFile);
-        const file = Object.values(zip.files).find(f =>
-          f.name.toLowerCase().includes('like list.txt')
-        );
+        const file = Object.values(zip.files).find(f => {
+          const name = f.name.toLowerCase();
+          return name.includes('like list.txt') || name.includes('likes.json');
+        });
+        
         
         if (!file) {
           setStatus('Like List.txt not found.');

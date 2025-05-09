@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
+import html2pdf from 'html2pdf.js';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer
 } from 'recharts';
@@ -15,39 +16,61 @@ export default function SignalsReport({ zipFile }) {
   const [topDomains, setTopDomains] = useState([]);
   const [personaLabel, setPersonaLabel] = useState('');
 
+  const reportRef = useRef(null);
+
   useEffect(() => {
-    const loadData = async () => {
+    const parseTxtFiles = async () => {
       try {
         const zip = await JSZip.loadAsync(zipFile);
-        const file = Object.values(zip.files).find(f =>
-          f.name.toLowerCase().includes('user_data_tiktok.json')
+
+        const watchFile = Object.values(zip.files).find(f =>
+          f.name.toLowerCase().includes('watch history.txt')
         );
 
-        if (!file) {
-          setStatus('user_data_tiktok.json not found.');
+        const likesFile = Object.values(zip.files).find(f =>
+          f.name.toLowerCase().includes('like list.txt')
+        );
+
+        const searchFile = Object.values(zip.files).find(f =>
+          f.name.toLowerCase().includes('searches.txt')
+        );
+
+        if (!watchFile || !likesFile || !searchFile) {
+          setStatus('One or more .txt files not found (watch, like, search).');
           return;
         }
 
-        const text = await file.async('string');
-        const json = JSON.parse(text);
+        const [watchText, likesText, searchText] = await Promise.all([
+          watchFile.async('string'),
+          likesFile.async('string'),
+          searchFile.async('string')
+        ]);
 
-        const watch = json['Watch History']?.['VideoList'] || [];
-        const likes = json['Likes and Favorites']?.['Like List'] || [];
-        const searches = json['Your Activity']?.['Searches']?.['SearchList'] || [];
-
-        // Repeat views
+        // Parse Watch History
+        const lines = watchText.split('\n');
         const viewMap = {};
         const hourMap = {};
         const domainMap = {};
-        watch.forEach(({ Link, Date }) => {
-          const date = new Date(Date);
-          const hour = date.getHours();
-          const domain = getDomain(Link);
+        let currentDateTime = '';
 
-          viewMap[Link] = (viewMap[Link] || 0) + 1;
-          hourMap[hour] = (hourMap[hour] || 0) + 1;
-          if (domain) domainMap[domain] = (domainMap[domain] || 0) + 1;
-        });
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+
+          if (line.startsWith('Date:')) {
+            currentDateTime = line.replace('Date:', '').trim();
+          }
+
+          if (line.startsWith('Link:')) {
+            const url = line.replace('Link:', '').trim();
+            const domain = getDomain(url);
+            const date = new Date(currentDateTime);
+            const hour = date.getHours();
+
+            viewMap[url] = (viewMap[url] || 0) + 1;
+            hourMap[hour] = (hourMap[hour] || 0) + 1;
+            if (domain) domainMap[domain] = (domainMap[domain] || 0) + 1;
+          }
+        }
 
         const repeats = Object.entries(viewMap)
           .filter(([_, count]) => count > 1)
@@ -61,15 +84,20 @@ export default function SignalsReport({ zipFile }) {
           name, value
         }));
 
-        // Like ratio
-        const ratio = watch.length > 0 ? likes.length / watch.length : 0;
+        // Parse Likes
+        const likes = (likesText.match(/Link:/g) || []).length;
+        const watches = Object.values(viewMap).reduce((sum, c) => sum + c, 0);
+        const likeRatio = watches > 0 ? likes / watches : 0;
 
-        // Top searches
+        // Parse Searches
+        const searchLines = searchText.split('\n');
         const searchMap = {};
-        searches.forEach(s => {
-          const term = s.SearchTerm?.trim().toLowerCase();
-          if (term) searchMap[term] = (searchMap[term] || 0) + 1;
-        });
+        for (let line of searchLines) {
+          if (line.startsWith('SearchTerm:')) {
+            const term = line.replace('SearchTerm:', '').trim().toLowerCase();
+            if (term) searchMap[term] = (searchMap[term] || 0) + 1;
+          }
+        }
 
         const searchList = Object.entries(searchMap)
           .sort((a, b) => b[1] - a[1])
@@ -77,22 +105,19 @@ export default function SignalsReport({ zipFile }) {
           .map(([term, count]) => ({ term, count }));
 
         setRepeatViews(repeats);
-        setLikesToWatchRatio(ratio);
+        setLikesToWatchRatio(likeRatio);
         setTopSearches(searchList);
         setTimeOfDayDist(hourDist);
         setTopDomains(domainDist);
-
-        // Persona label
-        const persona = buildPersonaLabel(ratio, hourMap, searchList);
-        setPersonaLabel(persona);
+        setPersonaLabel(buildPersonaLabel(likeRatio, hourMap, searchList));
         setStatus('');
       } catch (err) {
         console.error(err);
-        setStatus('Error parsing signal data.');
+        setStatus('Error parsing .txt files.');
       }
     };
 
-    loadData();
+    parseTxtFiles();
   }, [zipFile]);
 
   const getDomain = (url) => {
@@ -118,18 +143,29 @@ export default function SignalsReport({ zipFile }) {
     return `${engagement} ${timeTag} Viewer — Likely into ${topTerm}`;
   };
 
+  const exportToPDF = () => {
+    const element = reportRef.current;
+    html2pdf().set({
+      margin: 0.5,
+      filename: 'whoareyou_tiktok_report.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    }).from(element).save();
+  };
+
   return (
-    <div style={{ padding: '2rem' }}>
+    <div ref={reportRef} style={{ padding: '2rem' }}>
       <h1>My WhoAreYou On TikTok Report</h1>
       {status && <p>{status}</p>}
 
       {!status && (
         <>
-          <section style={{ marginTop: '2rem' }}>
-            <h2>🧠 Your Algorithm Signals</h2>
+          <section>
+            <h2>🧠 Algorithm Signals</h2>
             <p><strong>Persona:</strong> {personaLabel}</p>
             <p><strong>Likes-to-Watch Ratio:</strong> {(likesToWatchRatio * 100).toFixed(1)}%</p>
-            <p><strong>Repeat Views:</strong> {repeatViews.length}</p>
+            <p><strong>Repeat Videos:</strong> {repeatViews.length}</p>
           </section>
 
           <section style={{ marginTop: '2rem' }}>
@@ -179,7 +215,7 @@ export default function SignalsReport({ zipFile }) {
           </section>
 
           <div style={{ marginTop: '2rem' }}>
-            <button onClick={() => alert('PDF export coming soon.')}>📄 Export to PDF</button>
+            <button onClick={exportToPDF}>📄 Export to PDF</button>
           </div>
         </>
       )}

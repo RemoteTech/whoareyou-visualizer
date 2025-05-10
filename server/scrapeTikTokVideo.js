@@ -1,29 +1,32 @@
-const puppeteer = require('puppeteer');
+const fetch = require('node-fetch');
 
-async function scrapeTikTokVideo(url) {
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-
+async function scrapeTikTokVideo(shareUrl) {
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    const videoIdMatch = shareUrl.match(/video\/(\d+)/);
+    if (!videoIdMatch) {
+      return { error: 'Invalid TikTok URL', url: shareUrl };
+    }
 
-    // Wait for main content
-    await page.waitForSelector('h1[data-e2e="browse-video-desc"]', { timeout: 10000 });
+    const videoId = videoIdMatch[1];
 
-    const data = await page.evaluate(() => {
-      const caption = document.querySelector('h1[data-e2e="browse-video-desc"]')?.innerText || '';
-      const user = document.querySelector('a[data-e2e="browse-username"]')?.innerText || '';
-      const sound = document.querySelector('a[data-e2e="browse-music-link"]')?.innerText || '';
-      const hashtags = Array.from(document.querySelectorAll('strong')).map(el => el.innerText).filter(tag => tag.startsWith('#'));
-      return { caption, user, sound, hashtags };
-    });
+    // Try oEmbed without username — TikTok will resolve it
+    const oEmbedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/video/${videoId}`;
 
-    return { ...data, url };
-  } catch (error) {
-    console.error(`Failed to scrape ${url}`, error.message);
-    return { error: true, url };
-  } finally {
-    await browser.close();
+    const response = await fetch(oEmbedUrl);
+    if (!response.ok) throw new Error('oEmbed request failed');
+
+    const data = await response.json();
+
+    return {
+      videoId,
+      url: data.url,
+      title: data.title,
+      author: data.author_name,
+      thumbnail: data.thumbnail_url
+    };
+  } catch (err) {
+    console.error(`Failed to scrape ${shareUrl}:`, err.message);
+    return { error: true, message: err.message, url: shareUrl };
   }
 }
 

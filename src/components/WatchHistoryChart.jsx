@@ -60,7 +60,7 @@ export default function WatchHistoryChart({ zipFile }) {
             });
           }
         }
-
+        
         const chart = Object.entries(dateCounts)
           .map(([date, count]) => ({ date, count }))
           .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -109,6 +109,21 @@ export default function WatchHistoryChart({ zipFile }) {
     setCurrentPage(1);
   }, [selectedDate, sortMethod, allVideos]);
 
+  const scrapeVideoMetadata = async (url) => {
+    try {
+      const res = await fetch('http://localhost:4000/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+  
+      const data = await res.json();
+      console.log('Scraped TikTok Data:', data);
+    } catch (err) {
+      console.error('Scrape failed:', err);
+    }
+  };
+  
   const getVideoId = (url) => {
     const match = url.match(/video\/(\d+)/);
     return match ? match[1] : null;
@@ -197,7 +212,8 @@ export default function WatchHistoryChart({ zipFile }) {
                 <div style={{ fontSize: '0.9rem', color: '#555' }}>
                   Viewed on: {video.dateTime} | Domain: {video.domain} | Time: {video.timeOfDay}
                 </div>
-              </li>
+                <button onClick={() => scrapeVideoMetadata(video.url)}>Enrich Video</button>
+              </li>            
             ))}
           </ul>
 

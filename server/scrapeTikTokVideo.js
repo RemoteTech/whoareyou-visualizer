@@ -9,7 +9,7 @@ async function scrapeTikTokVideo(shareUrl) {
 
     const videoId = videoIdMatch[1];
 
-    // Try oEmbed without username — TikTok will resolve it
+    // Use oEmbed with fallback video URL
     const oEmbedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/video/${videoId}`;
 
     const response = await fetch(oEmbedUrl);

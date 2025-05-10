@@ -32,7 +32,7 @@ export default function SignalsReport({ zipFile }) {
         );
 
         const searchFile = Object.values(zip.files).find(f =>
-          f.name.toLowerCase().includes('searches.txt')
+          f.name.toLowerCase().endsWith('searches.txt')
         );
 
         if (!watchFile || !likesFile || !searchFile) {

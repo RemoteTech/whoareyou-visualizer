@@ -16,8 +16,8 @@ export default function SearchTermsChart({ zipFile }) {
         const zip = await JSZip.loadAsync(zipFile);
 
         const searchFile = Object.values(zip.files).find(f =>
-          f.name.toLowerCase().includes('searches.txt')
-        );
+          f.name.toLowerCase().endsWith('searches.txt')
+        );        
 
         if (!searchFile) {
           setStatus('Searches.txt not found in the zip file.');

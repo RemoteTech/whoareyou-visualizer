@@ -6,7 +6,7 @@ import WatchHistoryChart from '../components/WatchHistoryChart';
 
 export default function Dashboard() {
   const location = useLocation();
-  const [view, setView] = useState('likes');
+  const [view, setView] = useState('report');
   const zipFile = location.state?.zipFile;
 
   if (!zipFile) {

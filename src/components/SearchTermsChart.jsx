@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts';
-import Wordcloud from 'react-wordcloud';
+import SearchTermsWordCloud from './SearchTermsWordCloud';
 
 export default function SearchTermsChart({ zipFile }) {
   const [status, setStatus] = useState('Loading...');
@@ -85,20 +85,7 @@ export default function SearchTermsChart({ zipFile }) {
 
           <section style={{ marginTop: '2rem' }}>
             <h3>☁️ Search Term Word Cloud</h3>
-            <div style={{ height: 300 }}>
-              <Wordcloud
-                words={sortedTerms.map(term => ({
-                  text: term.term,
-                  value: term.count
-                }))}
-                options={{
-                  rotations: 2,
-                  rotationAngles: [-45, 0],
-                  fontSizes: [14, 50],
-                  enableTooltip: true,
-                }}
-              />
-            </div>
+            <SearchTermsWordCloud terms={sortedTerms.slice(0, 50)} />
           </section>
 
           <ul style={{ marginTop: '2rem' }}>

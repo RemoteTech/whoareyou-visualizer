@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import LikesChart from '../components/LikesChart';
 import WatchHistoryChart from '../components/WatchHistoryChart';
 import SearchTermsChart from '../components/SearchTermsChart';
+import React, { useEffect } from 'react';
 
 export default function Dashboard() {
   const location = useLocation();
@@ -19,6 +20,14 @@ export default function Dashboard() {
     );
   }
 
+  useEffect(() => {
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   return (
     <div style={{ padding: '2rem' }}>
       <h1>Dashboard</h1>
@@ -28,11 +37,16 @@ export default function Dashboard() {
         <button onClick={() => setView('likes')}>Likes</button>
         <button onClick={() => setView('watch')}>Watch History</button>
       </div>
-
       {view === 'report' && <SignalsReport zipFile={zipFile} />}
       {view === 'search' && <SearchTermsChart zipFile={zipFile} />}
       {view === 'likes' && <LikesChart zipFile={zipFile} />}
       {view === 'watch' && <WatchHistoryChart zipFile={zipFile} />}
+      <ins className="adsbygoogle"
+           style={{ display: 'block' }}
+           data-ad-client="ca-pub-6011504846169529"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+    </div>
     </div>
   );
 }

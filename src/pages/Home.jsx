@@ -1,5 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+
+function Home() {
+ 
 
 export default function Home() {
   const navigate = useNavigate();
@@ -13,6 +17,14 @@ export default function Home() {
       alert('Please upload a valid .zip file from TikTok.');
     }
   };
+
+   useEffect(() => {
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
@@ -30,6 +42,11 @@ export default function Home() {
         </ol>
         <p><strong>✅ Tip:</strong> Be sure to include <em>Watch History</em>, <em>Likes</em>, and <em>Searches</em> when exporting.</p>
       </section>
+      <ins className="adsbygoogle"
+           style={{ display: 'block' }}
+           data-ad-client="ca-pub-6011504846169529"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
     </div>
   );
 }

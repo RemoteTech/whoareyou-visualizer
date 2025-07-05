@@ -46,6 +46,5 @@ export default function Dashboard() {
            data-ad-format="auto"
            data-full-width-responsive="true"></ins>
     </div>
-    </div>
   );
 }

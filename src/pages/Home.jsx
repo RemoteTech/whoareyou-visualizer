@@ -1,7 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import React, { useEffect } from 'react';
-
-function Home() {
  
 
 export default function Home() {

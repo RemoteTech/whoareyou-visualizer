@@ -10,6 +10,14 @@ export default function Dashboard() {
   const [view, setView] = useState('report');
   const zipFile = location.state?.zipFile;
 
+  useEffect(() => {
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+  
   if (!zipFile) {
     return (
       <div style={{ padding: '2rem' }}>
@@ -18,14 +26,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  useEffect(() => {
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
 
   return (
     <div style={{ padding: '2rem' }}>

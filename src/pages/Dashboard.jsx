@@ -1,10 +1,9 @@
 import SignalsReport from '../components/SignalsReport';
-import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import LikesChart from '../components/LikesChart';
 import WatchHistoryChart from '../components/WatchHistoryChart';
 import SearchTermsChart from '../components/SearchTermsChart';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 export default function Dashboard() {
   const location = useLocation();
